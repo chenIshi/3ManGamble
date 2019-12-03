@@ -17,6 +17,14 @@ const PoC:i32 = 30;
 
 type Result = Option<Array1<i32>>;
 
+#[derive(Eq, PartialEq)]
+enum Participant {
+    A,
+    B,
+    C,
+    Ghost,
+}
+
 fn gamble() -> Result {
     /* initial state of a, b, c */
     let mut state = arr1(&[PoA, PoB, PoC]);
@@ -96,7 +104,10 @@ fn main() {
 
     env_logger::init();
 
-    let mut results: HashMap<Result, u32> = HashMap::new();
+    let mut results_with_a_out: HashMap<Result, u32> = HashMap::new();
+    let mut results_with_b_out: HashMap<Result, u32> = HashMap::new();
+    let mut results_with_c_out: HashMap<Result, u32> = HashMap::new();
+
 
     /* dump config */
     println!("==============================");
@@ -105,27 +116,51 @@ fn main() {
     println!("==============================");
 
     for _ in 0..NTHREAD {
-        let mut res = start_gamble();
+        let mut res_op = start_gamble();
 
         /* check if the result is recorded */
-        let mut append = false;
+        let mut append = Participant::Ghost;
+
+        let mut bankbroke_man = Participant::Ghost;
         {
-            if results.contains_key(&res) {
-                append = true;
-            }
+            if let res = res_op.clone().unwrap() {
+                for (i, item) in res.iter().enumerate() {
+                    if *item == 0 {
+                        match i {
+                            0 => {
+                                bankbroke_man = Participant::A;
+                                break;
+                            },
+                            1 => {
+                                bankbroke_man = Participant::B;
+                                break;
+                            },
+                            2 => {
+                                bankbroke_man = Participant::C;
+                                break;
+                            },
+                            _ => {},
+                        }
+                    }
+                }
+            }            
         }
-        if append {
-            let val_op = results.get_mut(&mut res);
-            match val_op {
-                Some(val) => {
-                    *val += 1;
-                },
-                None => {
-                    error!("Modifing not-existed value");
-                },
-            }
-        } else {
-            results.insert(res, 0);
+
+        match bankbroke_man {
+            Participant::A => {
+                results_with_a_out.insert(res_op, 1);
+            },
+            Participant::B => {
+                results_with_b_out.insert(res_op, 1);
+            },
+            Participant::C => {
+                results_with_c_out.insert(res_op, 1);
+            },
+            Participant::Ghost => {
+                debug!("Reach Maximum Gamble Times");
+            },
         }
     }
 }
+
+
