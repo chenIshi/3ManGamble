@@ -1,13 +1,19 @@
-extern crate ndarray;
 extern crate rand;
 extern crate log;
 extern crate env_logger;
+extern crate serde;
+extern crate serde_json;
 
-use ndarray::{arr1, Array1};
 use rand::Rng;
 use std::thread;
 use std::collections::HashMap;
 use log::{debug, info, error};
+use std::error::Error;
+use std::fs::File;
+use std::io::prelude::*;
+use std::path::Path;
+use serde::Serialize;
+
 
 const TRANS_THRES: u32 = 10000;
 const NTHREAD: u32 = 10000;
@@ -15,7 +21,8 @@ const PoA:i32 = 30;
 const PoB:i32 = 30;
 const PoC:i32 = 30;
 
-type Result = Option<Array1<i32>>;
+type State = [i32; 3];
+type Result = Option<State>;
 
 #[derive(Eq, PartialEq)]
 enum Participant {
@@ -27,14 +34,14 @@ enum Participant {
 
 fn gamble() -> Result {
     /* initial state of a, b, c */
-    let mut state = arr1(&[PoA, PoB, PoC]);
+    let mut state = [PoA, PoB, PoC];
     /* transition matrix */
-    let a_give_b = arr1(&[-1, 1, 0]);
-    let a_give_c = arr1(&[-1, 0, 1]);
-    let b_give_a = arr1(&[1, -1, 0]);
-    let b_give_c = arr1(&[0, -1, 1]);
-    let c_give_a = arr1(&[1, 0, -1]);
-    let c_give_b = arr1(&[0, 1, -1]);
+    let a_give_b = [-1, 1, 0];
+    let a_give_c = [-1, 0, 1];
+    let b_give_a = [1, -1, 0];
+    let b_give_c = [0, -1, 1];
+    let c_give_a = [1, 0, -1];
+    let c_give_b = [0, 1, -1];
 
     let mut trans_counter = 0;
 
@@ -46,22 +53,22 @@ fn gamble() -> Result {
 
         match possiblity % 6 {
             0 => {
-                state = state + &a_give_b;
+                state = add(state, a_give_b.clone());
             },
             1 => {
-                state = state + &a_give_c;
+                state = add(state, a_give_c.clone());
             },
             2 => {
-                state = state + &b_give_a;
+                state = add(state, b_give_a.clone());
             },
             3 => {
-                state = state + &b_give_c;
+                state = add(state, b_give_c.clone());
             },
             4 => {
-                state = state + &c_give_a;
+                state = add(state, c_give_a.clone());
             },
             5 => {
-                state = state + &c_give_b;
+                state = add(state, c_give_b.clone());
             },
             _ => {
                 error!("Module operation error");
@@ -70,7 +77,7 @@ fn gamble() -> Result {
         /* see if it reaches the terminating state */
         {
             if end(&state) {
-                info!("Result: {}", state);
+                info!("Result: {}, {}, {}", state[0], state[1], state[2]);
                 /* Game Finished */
                 return Some(state);
             }
@@ -83,7 +90,7 @@ fn gamble() -> Result {
     return None;
 }
 
-fn end(state: &Array1<i32>) -> bool {
+fn end(state: &State) -> bool {
     for i in state.iter() {
         if *i == 0 {
             return true;
@@ -104,9 +111,9 @@ fn main() {
 
     env_logger::init();
 
-    let mut results_with_a_out: HashMap<Result, u32> = HashMap::new();
-    let mut results_with_b_out: HashMap<Result, u32> = HashMap::new();
-    let mut results_with_c_out: HashMap<Result, u32> = HashMap::new();
+    let mut results_with_a_out: HashMap<String, u32> = HashMap::new();
+    let mut results_with_b_out: HashMap<String, u32> = HashMap::new();
+    let mut results_with_c_out: HashMap<String, u32> = HashMap::new();
 
 
     /* dump config */
@@ -148,19 +155,68 @@ fn main() {
 
         match bankbroke_man {
             Participant::A => {
-                results_with_a_out.insert(res_op, 1);
+                let count = results_with_a_out.entry(to_string(res_op)).or_insert(0);
+                *count += 1;
             },
             Participant::B => {
-                results_with_b_out.insert(res_op, 1);
+                let count = results_with_b_out.entry(to_string(res_op)).or_insert(0);
+                *count += 1;
             },
             Participant::C => {
-                results_with_c_out.insert(res_op, 1);
+                let count = results_with_c_out.entry(to_string(res_op)).or_insert(0);
+                *count += 1;
             },
             Participant::Ghost => {
                 debug!("Reach Maximum Gamble Times");
             },
         }
     }
+
+    /* output hashmap when one of three is bankrupt */ 
+    log_file(Path::new("out/a_out.txt"), results_with_a_out);
+    log_file(Path::new("out/b_out.txt"), results_with_b_out);
+    log_file(Path::new("out/c_out.txt"), results_with_c_out);
+
 }
 
+/* array addition */
+fn add(a: State, b: State) -> State {
+    let mut z: State = [0, 0, 0];
+    for (i, (aval, bval)) in a.iter().zip(&b).enumerate() {
+        z[i] = aval + bval;
+    }
+    z
+}
+
+/* output test result to txt file */
+fn log_file(file_name: &Path, map: HashMap<String, u32>) {
+    let display = file_name.display();
+
+    let mut file = match File::create(&file_name) {
+        Err(why) => panic!("couldn't create A's {}: {}", display, why.description()),
+        Ok(file) => file,
+    };
+
+    let serialized_res = serde_json::to_string(&map);
+    match serialized_res {
+        Err(why) => panic!("couldn't serialize A's hashmap since {}", why),
+        Ok(serialized) => {
+            match file.write_all(&mut serialized.as_bytes()) {
+                Err(why) => panic!("couldn't print out A's hashmap since {}", why),
+                Ok(_) => { },
+            }
+        },
+    }
+}
+
+fn to_string(result_op: Result) -> String {
+    match result_op {
+        Some(result) => {
+            return format!("{}, {}, {}", result[0], result[1], result[2])
+        },
+        None => {
+            return "NULL".to_owned()
+        }
+    }
+}
 
