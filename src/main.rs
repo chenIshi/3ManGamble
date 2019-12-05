@@ -9,6 +9,7 @@ use std::thread;
 use std::collections::HashMap;
 use log::{debug, info, error};
 use std::error::Error;
+use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
@@ -23,6 +24,7 @@ const PoC:i32 = 30;
 
 type State = [i32; 3];
 type Result = Option<State>;
+type Nstep = u32;
 
 #[derive(Eq, PartialEq)]
 enum Participant {
@@ -32,7 +34,7 @@ enum Participant {
     Ghost,
 }
 
-fn gamble() -> Result {
+fn gamble() -> (Result, Nstep) {
     /* initial state of a, b, c */
     let mut state = [PoA, PoB, PoC];
     /* transition matrix */
@@ -79,7 +81,7 @@ fn gamble() -> Result {
             if end(&state) {
                 info!("Result: {}, {}, {}", state[0], state[1], state[2]);
                 /* Game Finished */
-                return Some(state);
+                return (Some(state), trans_counter);
             }
         }
 
@@ -87,7 +89,7 @@ fn gamble() -> Result {
     }
 
     info!("Reach the end of gamble");
-    return None;
+    return (None, 0);
 }
 
 fn end(state: &State) -> bool {
@@ -99,7 +101,7 @@ fn end(state: &State) -> bool {
     return false;
 }
 
-fn start_gamble() -> Result {
+fn start_gamble() -> (Result, Nstep) {
     let handle = thread::spawn(move || {
         gamble()
     });
@@ -115,6 +117,8 @@ fn main() {
     let mut results_with_b_out: HashMap<String, u32> = HashMap::new();
     let mut results_with_c_out: HashMap<String, u32> = HashMap::new();
 
+    /* calculate consumed steps */
+    let mut nsteps: HashMap<u32, u32> = HashMap::new();
 
     /* dump config */
     println!("==============================");
@@ -123,7 +127,7 @@ fn main() {
     println!("==============================");
 
     for _ in 0..NTHREAD {
-        let mut res_op = start_gamble();
+        let (res_op, nstep) = start_gamble();
 
         /* check if the result is recorded */
         let mut append = Participant::Ghost;
@@ -153,6 +157,12 @@ fn main() {
             }            
         }
 
+        /* update  hashmap shows how many step it took */
+        let nc_step = nsteps.entry(nstep).or_insert(0);
+        *nc_step += 1;
+        
+
+        /* determine how end the game */
         match bankbroke_man {
             Participant::A => {
                 let count = results_with_a_out.entry(to_string(res_op)).or_insert(0);
@@ -176,6 +186,7 @@ fn main() {
     log_file(Path::new("out/a_out.txt"), results_with_a_out);
     log_file(Path::new("out/b_out.txt"), results_with_b_out);
     log_file(Path::new("out/c_out.txt"), results_with_c_out);
+    log_pfile(Path::new("out/nsteps.txt"), nsteps);
 
 }
 
@@ -191,6 +202,33 @@ fn add(a: State, b: State) -> State {
 /* output test result to txt file */
 fn log_file(file_name: &Path, map: HashMap<String, u32>) {
     let display = file_name.display();
+
+    /* try to create the directory */
+    fs::create_dir_all("/out");
+
+    let mut file = match File::create(&file_name) {
+        Err(why) => panic!("couldn't create A's {}: {}", display, why.description()),
+        Ok(file) => file,
+    };
+
+    let serialized_res = serde_json::to_string(&map);
+    match serialized_res {
+        Err(why) => panic!("couldn't serialize A's hashmap since {}", why),
+        Ok(serialized) => {
+            match file.write_all(&mut serialized.as_bytes()) {
+                Err(why) => panic!("couldn't print out A's hashmap since {}", why),
+                Ok(_) => { },
+            }
+        },
+    }
+}
+
+/* output test result to txt file, but diffent map format */
+fn log_pfile(file_name: &Path, map: HashMap<u32, u32>) {
+    let display = file_name.display();
+
+    /* try to create the directory */
+    fs::create_dir_all("/out");
 
     let mut file = match File::create(&file_name) {
         Err(why) => panic!("couldn't create A's {}: {}", display, why.description()),
@@ -212,11 +250,19 @@ fn log_file(file_name: &Path, map: HashMap<String, u32>) {
 fn to_string(result_op: Result) -> String {
     match result_op {
         Some(result) => {
-            return format!("{}, {}, {}", result[0], result[1], result[2])
+            if result[0] == 0 {
+                return format!("{}", result[1])
+            } else if result[1] == 0 {
+                return format!("{}", result[2])
+            } else if result[2] == 0 {
+                return format!("{}", result[0])
+            } else {
+                return "NULL".to_owned()
+            }
         },
         None => {
             return "NULL".to_owned()
-        }
+        },
     }
 }
 
