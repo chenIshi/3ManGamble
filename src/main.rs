@@ -129,9 +129,6 @@ fn main() {
     for _ in 0..NTHREAD {
         let (res_op, nstep) = start_gamble();
 
-        /* check if the result is recorded */
-        let mut append = Participant::Ghost;
-
         let mut bankbroke_man = Participant::Ghost;
         {
             if let res = res_op.clone().unwrap() {
