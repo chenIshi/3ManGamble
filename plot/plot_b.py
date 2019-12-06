@@ -3,6 +3,7 @@ import numpy as np
 import math
 from scipy.optimize import curve_fit
 from scipy import asarray as ar,exp
+from sklearn import linear_model
 
 file_path = '../out/b_out.txt'
 
@@ -24,8 +25,18 @@ for i in range(len(value)):
 for i in range(len(nums)):
 	nums[i] = math.log(nums[i])
 
+value = np.array(value).reshape(-1, 1)
+nums = np.array(nums).reshape(-1, 1)
 
-plt.scatter(value, nums, c='b')
+lr = linear_model.LinearRegression(fit_intercept=True)
+lr.fit(value, nums)
+
+plt.figure(figsize=(11, 8))
+plt.scatter(value, nums, c='b', label='Money C owned')
+plt.plot(value, lr.predict(value), c='r', label='Prediction with Linear Regression')
 plt.legend()
-plt.title("Steps taken to end the game")
+plt.title("Distrubution of C's money when B bankrupt")
+plt.xlabel('(x - 45) ** 2')
+plt.ylabel('log(y)')
+
 plt.show()
