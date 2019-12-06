@@ -21,7 +21,7 @@ const NTHREAD: u32 = 10000;
 const PoA:i32 = 30;
 const PoB:i32 = 30;
 const PoC:i32 = 30;
-const Promblem3: bool = true;
+const Promblem3: bool = false;
 
 type State = [i32; 3];
 type Result = Option<State>;
