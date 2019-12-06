@@ -21,6 +21,7 @@ const NTHREAD: u32 = 10000;
 const PoA:i32 = 30;
 const PoB:i32 = 30;
 const PoC:i32 = 30;
+const Promblem3: bool = true;
 
 type State = [i32; 3];
 type Result = Option<State>;
@@ -94,7 +95,9 @@ fn gamble() -> (Result, Nstep) {
 
 fn end(state: &State) -> bool {
     for i in state.iter() {
-        if *i == 0 {
+        if !Promblem3 && *i == 0 {
+            return true;
+        } else if Promblem3 && *i == -1 {
             return true;
         }
     }
@@ -113,9 +116,9 @@ fn main() {
 
     env_logger::init();
 
-    let mut results_with_a_out: HashMap<String, u32> = HashMap::new();
-    let mut results_with_b_out: HashMap<String, u32> = HashMap::new();
-    let mut results_with_c_out: HashMap<String, u32> = HashMap::new();
+    let mut results_with_a_out: HashMap<String, i32> = HashMap::new();
+    let mut results_with_b_out: HashMap<String, i32> = HashMap::new();
+    let mut results_with_c_out: HashMap<String, i32> = HashMap::new();
 
     /* calculate consumed steps */
     let mut nsteps: HashMap<u32, u32> = HashMap::new();
@@ -133,7 +136,7 @@ fn main() {
         {
             if let res = res_op.clone().unwrap() {
                 for (i, item) in res.iter().enumerate() {
-                    if *item == 0 {
+                    if (!Promblem3 && *item == 0) || (Promblem3 && *item == -1) {
                         match i {
                             0 => {
                                 bankbroke_man = Participant::A;
@@ -197,7 +200,7 @@ fn add(a: State, b: State) -> State {
 }
 
 /* output test result to txt file */
-fn log_file(file_name: &Path, map: HashMap<String, u32>) {
+fn log_file(file_name: &Path, map: HashMap<String, i32>) {
     let display = file_name.display();
 
     /* try to create the directory */
@@ -247,11 +250,11 @@ fn log_pfile(file_name: &Path, map: HashMap<u32, u32>) {
 fn to_string(result_op: Result) -> String {
     match result_op {
         Some(result) => {
-            if result[0] == 0 {
+            if result[0] <= 0 {
                 return format!("{}", result[1])
-            } else if result[1] == 0 {
+            } else if result[1] <= 0 {
                 return format!("{}", result[2])
-            } else if result[2] == 0 {
+            } else if result[2] <= 0 {
                 return format!("{}", result[0])
             } else {
                 return "NULL".to_owned()
